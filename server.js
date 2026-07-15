@@ -57,14 +57,17 @@ function tooManyAttempts(ip) {
 
 const LOGIN_HTML = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Finlete CRM — Log in</title>
-<style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f6f7f9;
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;font-family:'Archivo',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#fafafa;
 display:flex;align-items:center;justify-content:center;min-height:100vh}
-.box{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:36px;width:320px;text-align:center}
-h1{font-size:19px;margin:0 0 4px}h1 span{color:#2563eb}p{color:#6b7486;font-size:13px;margin:0 0 20px}
-input{width:100%;box-sizing:border-box;padding:11px 12px;font-size:15px;border:1px solid #e4e7ec;border-radius:8px;outline:none;margin-bottom:12px}
-input:focus{border-color:#2563eb}button{width:100%;padding:11px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
-#err{color:#dc2626;font-size:13px;min-height:18px;margin-top:10px}</style></head>
-<body><form class="box" onsubmit="go(event)"><h1>Finlete <span>CRM</span></h1><p>Enter the team password</p>
+.box{background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:36px;width:320px;text-align:center}
+h1{font-size:19px;margin:12px 0 4px;color:#262626}h1 span{color:#36a93e}p{color:#737373;font-size:13px;margin:0 0 20px}
+input{width:100%;box-sizing:border-box;padding:11px 12px;font-size:15px;font-family:inherit;border:1px solid #e5e5e5;border-radius:8px;outline:none;margin-bottom:12px}
+input:focus{border-color:#36a93e}button{width:100%;padding:11px;border:none;border-radius:999px;background:#36a93e;color:#fff;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}
+button:hover{background:#299030}#err{color:#ef4444;font-size:13px;min-height:18px;margin-top:10px}</style></head>
+<body><form class="box" onsubmit="go(event)">
+<svg width="44" height="44" viewBox="0 0 53 53" xmlns="http://www.w3.org/2000/svg" fill="none"><path fill="#1B2A39" d="M17.187 15.481h24.571L47.9 4.843H11.044L4.9 15.48l6.144 10.64z"/><path fill="#44A647" d="m44.773 20.801-6.143 10.64H26.345L20.24 42.016l-.038.065-3.033 5.253-6.144-10.638 3.035-5.255.037-.065L20.202 20.8z"/></svg>
+<h1>Finlete <span>CRM</span></h1><p>Enter the team password</p>
 <input type="password" id="pw" autofocus autocomplete="current-password"><button>Log in</button><div id="err"></div></form>
 <script>async function go(e){e.preventDefault();
 const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
