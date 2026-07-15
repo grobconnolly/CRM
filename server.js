@@ -5,6 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const tls = require('tls');
 const { execFile } = require('child_process');
 
 const PORT = process.env.PORT || 4321;
@@ -80,6 +81,60 @@ const normEmail = (e) => String(e || '').trim().toLowerCase();
 const validRegistrationEmail = (e) =>
   /^[a-z0-9._%+-]+@[a-z0-9.-]+$/.test(e) && e.endsWith('@' + EMAIL_DOMAIN);
 
+// ---------- Email verification codes ----------
+// Codes are emailed via SMTP (works with Google Workspace + an app password).
+// Configure on Railway: SMTP_USER=you@finlete.com, SMTP_PASS=<Google app password>.
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = +(process.env.SMTP_PORT || 465);
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const MAIL_FROM = process.env.MAIL_FROM || SMTP_USER;
+const mailConfigured = () => !!(SMTP_USER && SMTP_PASS);
+
+// Minimal SMTP client over implicit TLS (port 465)
+function sendMail(to, subject, text) {
+  return new Promise((resolve, reject) => {
+    const steps = [
+      { expect: 220, send: 'EHLO finlete-crm' },
+      { expect: 250, send: 'AUTH LOGIN' },
+      { expect: 334, send: Buffer.from(SMTP_USER).toString('base64') },
+      { expect: 334, send: Buffer.from(SMTP_PASS).toString('base64') },
+      { expect: 235, send: `MAIL FROM:<${MAIL_FROM}>` },
+      { expect: 250, send: `RCPT TO:<${to}>` },
+      { expect: 250, send: 'DATA' },
+      { expect: 354, send: `From: Finlete CRM <${MAIL_FROM}>\r\nTo: <${to}>\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n.` },
+      { expect: 250, send: 'QUIT' },
+      { expect: 221, send: null },
+    ];
+    let i = 0, buf = '';
+    const sock = tls.connect(SMTP_PORT, SMTP_HOST, { servername: SMTP_HOST });
+    sock.setTimeout(15000, () => { sock.destroy(); reject(new Error('SMTP timeout')); });
+    sock.on('error', reject);
+    sock.on('data', (d) => {
+      buf += d.toString();
+      let idx;
+      while ((idx = buf.indexOf('\r\n')) !== -1) {
+        const line = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        if (/^\d{3}-/.test(line)) continue; // continuation line of a multi-line reply
+        const code = +line.slice(0, 3);
+        const step = steps[i];
+        if (!step) return;
+        if (code !== step.expect) { sock.destroy(); return reject(new Error(`SMTP ${line}`)); }
+        if (step.send == null) { sock.end(); return resolve(); }
+        sock.write(step.send + '\r\n');
+        i++;
+      }
+    });
+  });
+}
+
+// Pending registration codes: email -> { hash, exp, tries }. In memory on purpose —
+// a restart just means the user requests a fresh code.
+const pendingCodes = new Map();
+const codeRequests = new Map(); // email -> { count, reset } (3 codes per hour per address)
+const hashCode = (c) => crypto.createHash('sha256').update(String(c)).digest('hex');
+
 // Brute-force guard: 20 password attempts per IP per hour
 const attempts = new Map();
 function tooManyAttempts(ip) {
@@ -105,23 +160,33 @@ button:hover{background:#299030}#err{color:#ef4444;font-size:13px;min-height:18p
 <svg width="44" height="44" viewBox="0 0 53 53" xmlns="http://www.w3.org/2000/svg" fill="none"><path fill="#1B2A39" d="M17.187 15.481h24.571L47.9 4.843H11.044L4.9 15.48l6.144 10.64z"/><path fill="#44A647" d="m44.773 20.801-6.143 10.64H26.345L20.24 42.016l-.038.065-3.033 5.253-6.144-10.638 3.035-5.255.037-.065L20.202 20.8z"/></svg>
 <h1>Finlete <span>CRM</span></h1><p id="sub">Log in with your ${EMAIL_DOMAIN} account</p>
 <input type="email" id="email" placeholder="you@${EMAIL_DOMAIN}" autofocus autocomplete="username">
+<input type="text" id="code" placeholder="6-digit code from your email" inputmode="numeric" autocomplete="one-time-code" style="display:none">
 <input type="password" id="pw" placeholder="Password" autocomplete="current-password">
 <button id="btn">Log in</button><div id="err"></div>
 <a href="#" id="toggle" style="display:block;margin-top:14px;font-size:13px;color:#36a93e;font-weight:600;text-decoration:none">New here? Create an account</a>
 </form>
 <script>
 let mode='login';
-document.getElementById('toggle').onclick=(e)=>{e.preventDefault();mode=mode==='login'?'register':'login';
-document.getElementById('btn').textContent=mode==='login'?'Log in':'Create account';
-document.getElementById('sub').textContent=mode==='login'?'Log in with your ${EMAIL_DOMAIN} account':'Register with your ${EMAIL_DOMAIN} email (password: 8+ characters)';
-document.getElementById('toggle').textContent=mode==='login'?'New here? Create an account':'Already registered? Log in';
-document.getElementById('err').textContent='';};
+const el=(id)=>document.getElementById(id);
+function setMode(m){mode=m;el('err').textContent='';
+el('code').style.display=m==='verify'?'':'none';
+el('pw').style.display=m==='request'?'none':'';
+el('email').readOnly=m==='verify';
+el('pw').placeholder=m==='login'?'Password':'Create a password (8+ characters)';
+el('pw').autocomplete=m==='login'?'current-password':'new-password';
+el('btn').textContent=m==='login'?'Log in':m==='request'?'Email me a code':'Create account';
+el('sub').textContent=m==='login'?'Log in with your ${EMAIL_DOMAIN} account'
+  :m==='request'?'Enter your ${EMAIL_DOMAIN} email and we\\u2019ll send a verification code'
+  :'We emailed a code to '+el('email').value;
+el('toggle').textContent=m==='login'?'New here? Create an account':'Back to log in';}
+el('toggle').onclick=(e)=>{e.preventDefault();setMode(mode==='login'?'request':'login');};
 async function go(e){e.preventDefault();
-const r=await fetch('/api/'+mode,{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('pw').value})});
-if(r.ok){location.reload();return;}
+const url=mode==='login'?'/api/login':mode==='request'?'/api/register-start':'/api/register-complete';
+const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({email:el('email').value,password:el('pw').value,code:el('code').value})});
+if(r.ok){if(mode==='request'){setMode('verify');return;}location.reload();return;}
 const msg=(await r.json().catch(()=>({}))).error;
-document.getElementById('err').textContent=r.status===429?'Too many attempts — try again later.':(msg||'Something went wrong.');}
+el('err').textContent=r.status===429&&!msg?'Too many attempts — try again later.':(msg||'Something went wrong.');}
 </script></body></html>`;
 
 function loadData() {
@@ -497,19 +562,56 @@ const server = http.createServer((req, res) => {
   };
 
   if (REQUIRE_LOGIN) {
-    if ((req.url === '/api/login' || req.url === '/api/register') && req.method === 'POST') {
-      const isRegister = req.url === '/api/register';
+    const authRoutes = ['/api/login', '/api/register-start', '/api/register-complete'];
+    if (authRoutes.includes(req.url) && req.method === 'POST') {
       const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
       if (tooManyAttempts(ip)) return json(429, { error: 'too many attempts' });
       let body = '';
       req.on('data', (c) => (body += c));
-      req.on('end', () => {
-        let email = '', pw = '';
-        try { const b = JSON.parse(body); email = normEmail(b.email); pw = String(b.password || ''); } catch {}
-        if (isRegister) {
+      req.on('end', async () => {
+        let email = '', pw = '', code = '';
+        try {
+          const b = JSON.parse(body);
+          email = normEmail(b.email);
+          pw = String(b.password || '');
+          code = String(b.code || '').trim();
+        } catch {}
+
+        // Step 1 of registration: email a verification code to the @finlete.com address
+        if (req.url === '/api/register-start') {
           if (!validRegistrationEmail(email)) return json(403, { error: `Registration is limited to @${EMAIL_DOMAIN} emails.` });
+          if (USERS.users.some((u) => u.email === email)) return json(409, { error: 'That email is already registered — log in instead.' });
+          const now = Date.now();
+          const rl = codeRequests.get(email) || { count: 0, reset: now + 3600 * 1000 };
+          if (now > rl.reset) { rl.count = 0; rl.reset = now + 3600 * 1000; }
+          if (++rl.count > 3) return json(429, { error: 'Too many codes requested — try again in an hour.' });
+          codeRequests.set(email, rl);
+          const verifyCode = String(crypto.randomInt(100000, 1000000));
+          pendingCodes.set(email, { hash: hashCode(verifyCode), exp: now + 15 * 60 * 1000, tries: 0 });
+          if (mailConfigured()) {
+            try {
+              await sendMail(email, 'Your Finlete CRM verification code',
+                `Your verification code is: ${verifyCode}\n\nIt expires in 15 minutes. If you didn't request this, ignore this email.`);
+            } catch (e) {
+              console.log('sendMail failed:', e.message);
+              return json(500, { error: 'Could not send the email — tell Rob to check the mail settings.' });
+            }
+          } else {
+            // No SMTP configured: code only appears in the server log, so no one can self-register
+            console.log(`Verification code for ${email}: ${verifyCode}`);
+          }
+          return json(200, { ok: true });
+        }
+
+        // Step 2: correct code lets them set a password and become a user
+        if (req.url === '/api/register-complete') {
+          const pend = pendingCodes.get(email);
+          if (!pend || Date.now() > pend.exp) return json(400, { error: 'Code expired — start over to get a new one.' });
+          if (++pend.tries > 5) { pendingCodes.delete(email); return json(429, { error: 'Too many wrong codes — start over.' }); }
+          if (hashCode(code) !== pend.hash) return json(401, { error: 'Wrong code — check the email we sent you.' });
           if (pw.length < 8) return json(400, { error: 'Password must be at least 8 characters.' });
           if (USERS.users.some((u) => u.email === email)) return json(409, { error: 'That email is already registered — log in instead.' });
+          pendingCodes.delete(email);
           const salt = crypto.randomBytes(16).toString('hex');
           USERS.users.push({ email, salt, hash: hashPassword(pw, salt), created: new Date().toISOString() });
           saveUsers(USERS);
@@ -517,6 +619,8 @@ const server = http.createServer((req, res) => {
           res.end('{"ok":true}');
           return;
         }
+
+        // Plain login
         const u = USERS.users.find((x) => x.email === email);
         let ok = false;
         if (u) {
