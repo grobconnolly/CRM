@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finlete CRM</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --ink: #1a2233;
+    --muted: #6b7486;
+    --line: #e4e7ec;
+    --accent: #2563eb;
+    --accent-soft: #eff4ff;
+    --green: #16a34a;
+    --amber: #d97706;
+    --red: #dc2626;
+    --purple: #7c3aed;
+    --teal: #0d9488;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; margin: 0 6px 0 0; font-weight: 700; white-space: nowrap; }
+  header h1 span { color: var(--accent); }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    border: none; background: none; padding: 8px 13px; border-radius: 8px;
+    font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap;
+  }
+  .tab.active { background: var(--accent-soft); color: var(--accent); }
+  #search {
+    margin-left: auto; padding: 8px 12px; border: 1px solid var(--line);
+    border-radius: 8px; width: 190px; font-size: 14px; outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #saveStatus { font-size: 12px; color: var(--muted); min-width: 48px; text-align: right; }
+  main { max-width: 1280px; margin: 20px auto; padding: 0 20px; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .toolbar .count { color: var(--muted); font-size: 13px; }
+  .toolbar .sync-info { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .btn {
+    border: none; background: var(--accent); color: white; padding: 9px 15px;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+  .btn.ghost { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 900px; }
+  th {
+    text-align: left; padding: 9px 10px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--line);
+    background: #fafbfc; white-space: nowrap;
+  }
+  th.rk { text-align: center; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); }
+  th.sorted { color: var(--accent); }
+  td { padding: 3px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfd; }
+  td input, td select, td textarea {
+    width: 100%; border: 1px solid transparent; background: transparent; font: inherit;
+    color: inherit; padding: 6px 6px; border-radius: 6px; outline: none;
+  }
+  td input:focus, td select:focus { border-color: var(--accent); background: white; }
+  td.rk { text-align: center; font-weight: 700; width: 58px; color: var(--ink); white-space: nowrap; }
+  td.rk.dim { color: #c3c9d4; font-weight: 400; }
+  td.rk input { text-align: center; font-weight: 700; padding: 6px 2px; }
+  .rkwrap { display: flex; align-items: center; gap: 1px; }
+  .rkwrap input { min-width: 30px; }
+  .delta { font-size: 10px; font-weight: 700; vertical-align: middle; }
+  .grade { display: inline-block; padding: 2px 7px; border-radius: 6px; font-weight: 600; }
+  .g-dg { background: #dcfce7; color: #166534; }
+  .g-lg { background: #f3fce8; color: #4d7c0f; }
+  .g-n  { }
+  .g-lr { background: #fff1f2; color: #e11d48; }
+  .g-dr { background: #fee2e2; color: #991b1b; }
+  .delta.up { color: var(--green); }
+  .delta.down { color: var(--red); }
+  .delta.fresh { color: var(--accent); }
+  .pill-select { font-weight: 600; border-radius: 999px; padding: 5px 10px; cursor: pointer; }
+  .s-lead { background: #f1f3f6; color: var(--muted); }
+  .s-contacted { background: #fff7ed; color: var(--amber); }
+  .s-negotiating { background: #f5f3ff; color: var(--purple); }
+  .s-termsheet { background: #f0fdfa; color: var(--teal); }
+  .s-won { background: #f0fdf4; color: var(--green); }
+  .s-lost { background: #fef2f2; color: var(--red); }
+  .derived { color: var(--muted); font-size: 13px; padding: 6px; white-space: nowrap; }
+  .represents { color: var(--muted); font-size: 13px; padding: 6px; max-width: 340px; }
+  .del {
+    border: none; background: none; color: #c3c9d4; cursor: pointer; font-size: 16px;
+    padding: 4px 8px; border-radius: 6px;
+  }
+  .del:hover { color: var(--red); background: #fef2f2; }
+  .empty { padding: 48px; text-align: center; color: var(--muted); }
+  .empty b { color: var(--ink); }
+  .src-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  td.thumb { width: 40px; padding: 3px 2px 3px 10px; }
+  .headshot {
+    width: 30px; height: 30px; border-radius: 50%; object-fit: cover; display: block;
+    background: #e8ebf0; cursor: pointer; border: 1px solid var(--line);
+  }
+  .headshot:hover { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .headshot.ph { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(20,26,40,0.45); z-index: 50;
+    display: none; align-items: flex-start; justify-content: center; padding: 60px 16px;
+  }
+  #overlay.open { display: flex; }
+  .profile {
+    background: var(--card); border-radius: 16px; width: 420px; max-width: 100%;
+    padding: 24px; box-shadow: 0 20px 60px rgba(20,26,40,0.3); position: relative;
+  }
+  .profile .close { position: absolute; top: 12px; right: 12px; border: none; background: none; font-size: 20px; color: var(--muted); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .profile .close:hover { background: var(--bg); color: var(--ink); }
+  .profile-head { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
+  .profile-head img, .profile-head .bigph {
+    width: 84px; height: 84px; border-radius: 50%; object-fit: cover; background: #e8ebf0; border: 1px solid var(--line);
+  }
+  .profile-head .bigph { display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; color: var(--muted); }
+  .profile-head h2 { margin: 0 0 4px; font-size: 19px; }
+  .profile-head .sub { color: var(--muted); font-size: 13px; }
+  .profile-ranks { display: flex; gap: 10px; margin: 14px 0; }
+  .prank { flex: 1; background: var(--bg); border-radius: 10px; padding: 10px; text-align: center; }
+  .prank .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .prank .val { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .profile-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .plink {
+    display: inline-block; padding: 8px 13px; border-radius: 8px; border: 1px solid var(--line);
+    text-decoration: none; color: var(--ink); font-weight: 600; font-size: 13px; background: var(--card);
+  }
+  .plink:hover { border-color: var(--accent); color: var(--accent); }
+  .handles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .handles label { flex: 1 1 45%; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .handles input {
+    display: block; width: 100%; margin-top: 4px; padding: 7px 10px; font: inherit;
+    border: 1px solid var(--line); border-radius: 8px; outline: none;
+  }
+  .handles input:focus { border-color: var(--accent); }
+  #colMenu {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(20,26,40,0.15); padding: 10px 14px; min-width: 150px;
+  }
+  #colMenu.open { display: block; }
+  #colMenu label {
+    display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  #colMenu input { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Finlete <span>CRM</span></h1>
+  <nav class="tabs">
+    <button class="tab active" id="tab-prospects" onclick="switchTab('prospects')">Prospects</button>
+    <button class="tab" id="tab-opportunities" onclick="switchTab('opportunities')">Opportunities</button>
+    <button class="tab" id="tab-agents" onclick="switchTab('agents')">Agents</button>
+  </nav>
+  <input id="search" placeholder="Search…" oninput="render()">
+  <span id="saveStatus">Saved</span>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button class="btn" id="addBtn" onclick="addRow()">+ Add prospect</button>
+    <button class="btn ghost" id="syncBtn" onclick="syncRanks()">↻ Update ranks</button>
+    <button class="btn ghost" onclick="exportCSV()">Export CSV</button>
+    <div id="colFilterWrap" style="position:relative">
+      <button class="btn ghost" id="filterBtn" onclick="toggleColMenu(event)">⚙ Filter</button>
+      <div id="colMenu"></div>
+    </div>
+    <button class="btn ghost" id="importBtn" style="display:none" onclick="document.getElementById('csvFile').click()">⬆ Import CSV</button>
+    <button class="btn ghost" id="templateBtn" style="display:none" onclick="downloadTemplate()">⬇ Blank template</button>
+    <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none" onchange="importAgents(this)">
+    <span class="count" id="count"></span>
+    <span class="sync-info" id="syncInfo"></span>
+  </div>
+  <div class="card">
+    <table id="table"></table>
+    <div class="empty" id="empty" style="display:none"></div>
+  </div>
+  <div class="src-note" id="srcNote"></div>
+</main>
+
+<div id="overlay" onclick="if (event.target === this) closeProfile()">
+  <div class="profile" id="profileCard"></div>
+</div>
+
+<script>
+const STAGES = [
+  { key: 'lead', label: 'Lead' },
+  { key: 'contacted', label: 'Contacted' },
+  { key: 'negotiating', label: 'Negotiating' },
+  { key: 'termsheet', label: 'Term sheet' },
+  { key: 'won', label: 'Closed – won' },
+  { key: 'lost', label: 'Closed – lost' },
+];
+const ADD_LABEL = { prospects: '+ Add prospect', opportunities: '+ Add opportunity', agents: '+ Add agent' };
+
+let data = { prospects: [], agents: [], opportunities: [], lastSync: null };
+let tab = 'prospects';
+let sortBy = 'consensus';
+let sortDir = 1;
+// Column visibility, driven by the ⚙ Filter popup and remembered between sessions
+const OPTIONAL_COLS = [
+  { key: 'org', label: 'Org' }, { key: 'age', label: 'Age' }, { key: 'level', label: 'Level' },
+  { key: 'bonus', label: 'Bonus' }, { key: 'games', label: 'Games' }, { key: 'fip', label: 'FIP-' },
+  { key: 'kbb', label: 'K-BB%' }, { key: 'wrc', label: 'wRC+' }, { key: 'agent', label: 'Agent' },
+  { key: 'notes', label: 'Notes' },
+];
+let visCols = { ...Object.fromEntries(OPTIONAL_COLS.map(c => [c.key, true])),
+                ...JSON.parse(localStorage.getItem('visCols') || '{}') };
+const vis = (k) => visCols[k] !== false;
+let hideMLB = localStorage.getItem('hideMLB') === '1';
+
+function toggleColMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('colMenu');
+  if (menu.classList.contains('open')) { menu.classList.remove('open'); return; }
+  menu.innerHTML = `<label style="border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:6px">
+    <input type="checkbox" ${hideMLB ? 'checked' : ''} onchange="toggleHideMLB(this.checked)"> Hide MLB players
+  </label>` + OPTIONAL_COLS.map(c => `<label>
+    <input type="checkbox" ${vis(c.key) ? 'checked' : ''} onchange="toggleCol('${c.key}', this.checked)"> ${c.label}
+  </label>`).join('');
+  menu.classList.add('open');
+}
+
+function toggleHideMLB(on) {
+  hideMLB = on;
+  localStorage.setItem('hideMLB', on ? '1' : '0');
+  render();
+}
+
+function toggleCol(key, on) {
+  visCols[key] = on;
+  localStorage.setItem('visCols', JSON.stringify(visCols));
+  render();
+}
+
+// Close the popup when clicking anywhere outside it
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('colFilterWrap').contains(e.target)) {
+    document.getElementById('colMenu').classList.remove('open');
+  }
+});
+let saveTimer = null;
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+async function load() {
+  data = await (await fetch('/api/data')).json();
+  render();
+}
+
+function queueSave() {
+  document.getElementById('saveStatus').textContent = 'Saving…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    await fetch('/api/data', { method: 'POST', body: JSON.stringify(data) });
+    document.getElementById('saveStatus').textContent = 'Saved';
+  }, 400);
+}
+
+function switchTab(t) {
+  tab = t;
+  for (const k of Object.keys(ADD_LABEL)) {
+    document.getElementById('tab-' + k).classList.toggle('active', k === t);
+  }
+  document.getElementById('addBtn').textContent = ADD_LABEL[t];
+  document.getElementById('syncBtn').style.display = t === 'prospects' ? '' : 'none';
+  document.getElementById('colFilterWrap').style.display = t === 'prospects' ? '' : 'none';
+  document.getElementById('importBtn').style.display = t === 'agents' ? '' : 'none';
+  document.getElementById('templateBtn').style.display = t === 'agents' ? '' : 'none';
+  render();
+}
+
+function addRow() {
+  if (tab === 'prospects') {
+    data.prospects.push({ id: uid(), name: '', position: '', team: '', eta: '', fv: '',
+      fgRank: null, baRank: null, mlbRank: null, agentId: '', notes: '' });
+  } else if (tab === 'opportunities') {
+    data.opportunities.push({ id: uid(), name: '', prospectId: '', stage: 'lead',
+      value: '', pct: '', nextStep: '', notes: '' });
+  } else {
+    data.agents.push({ id: uid(), name: '', agency: '', phone: '', email: '', notes: '' });
+  }
+  queueSave();
+  render();
+  const inputs = document.querySelectorAll('input[data-field="name"]');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function removeRow(kind, id) {
+  const item = data[kind].find(r => r.id === id);
+  if (!confirm(`Delete ${item?.name || 'this row'}?`)) return;
+  data[kind] = data[kind].filter(r => r.id !== id);
+  if (kind === 'agents') data.prospects.forEach(p => { if (p.agentId === id) p.agentId = ''; });
+  if (kind === 'prospects') data.opportunities.forEach(o => { if (o.prospectId === id) o.prospectId = ''; });
+  queueSave();
+  render();
+}
+
+function update(kind, id, field, value) {
+  const row = data[kind].find(r => r.id === id);
+  if (!row) return;
+  row[field] = field.endsWith('Rank') ? (value === '' ? null : +value) : value;
+  if (field === 'baRank') snapshotOne(row);
+  queueSave();
+  // Structural changes re-render (dropdowns/pills); plain typing doesn't, to keep focus
+  if (['stage', 'agentId', 'prospectId', 'baRank'].includes(field)) render();
+}
+
+async function syncRanks() {
+  const btn = document.getElementById('syncBtn');
+  btn.disabled = true;
+  btn.textContent = 'Updating…';
+  try {
+    const res = await (await fetch('/api/sync', { method: 'POST' })).json();
+    if (res.data) data = res.data;
+    render();
+    if (res.errors && res.errors.length) alert('Some sources failed:\n' + res.errors.join('\n'));
+  } catch (e) {
+    alert('Sync failed: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = '↻ Update ranks';
+}
+
+const agentName = (id) => data.agents.find(a => a.id === id)?.name || '';
+const prospectById = (id) => data.prospects.find(p => p.id === id);
+const matches = (row, q, fields) => !q || fields.some(f => String(row[f] ?? '').toLowerCase().includes(q));
+const rk = (v) => v == null ? '' : v;
+
+// Consensus sort: average of available ranks, unranked players last
+function consensus(p) {
+  const ranks = [p.fgRank, p.baRank, p.mlbRank].filter(r => r != null);
+  return ranks.length ? ranks.reduce((a, b) => a + b, 0) / ranks.length : 9999;
+}
+
+// Click a header to sort by that column; click again to reverse; a third click restores consensus order
+const NATURAL_DIR = { fg: 1, ba: 1, mlb: 1, org: 1, name: 1, pos: 1, team: 1, level: 1, age: 1, bonus: -1, agent: 1, fip: 1, kbb: -1, wrc: -1, games: -1 };
+const LEVEL_ORDER = { MLB: 1, AAA: 2, AA: 3, 'A+': 4, A: 5, CPX: 6, DSL: 7, R: 8 };
+
+function setSort(key) {
+  if (sortBy !== key) { sortBy = key; sortDir = NATURAL_DIR[key]; }
+  else if (sortDir === NATURAL_DIR[key]) sortDir = -sortDir;
+  else { sortBy = 'consensus'; sortDir = 1; }
+  render();
+}
+
+// Value used for sorting; null means "no value — always sink to the bottom"
+function sortValue(p) {
+  switch (sortBy) {
+    case 'fg': case 'ba': case 'mlb': return p[sortBy + 'Rank'];
+    case 'org': return p.orgRank;
+    case 'name': return p.name.trim().toLowerCase() || null;
+    case 'pos': return p.position.trim().toLowerCase() || null;
+    case 'team': return p.team.trim().toLowerCase() || null;
+    case 'level': return p.level ? (LEVEL_ORDER[p.level] ?? 5.5) : null;
+    case 'age': return p.age;
+    case 'bonus': return p.bonus;
+    case 'fip': return p.fipMinus;
+    case 'kbb': return p.kbb;
+    case 'wrc': return p.wrc;
+    case 'games': return p.games;
+    case 'agent': return agentName(p.agentId).trim().toLowerCase() || null;
+    default: return consensus(p);
+  }
+}
+
+function compareProspects(a, b) {
+  const va = sortValue(a), vb = sortValue(b);
+  if (va == null && vb == null) { /* fall through to tiebreak */ }
+  else if (va == null) return 1;
+  else if (vb == null) return -1;
+  else {
+    const c = (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * sortDir;
+    if (c) return c;
+  }
+  // Tiebreak: consensus rank, then FV grade, then name
+  return consensus(a) - consensus(b) || (+b.fv || 0) - (+a.fv || 0) || a.name.localeCompare(b.name);
+}
+
+const fmtBonus = (v) => v == null ? '' :
+  v >= 1e6 ? '$' + (Math.round(v / 1e5) / 10) + 'M' : '$' + Math.round(v / 1e3) + 'K';
+
+// Official MLB headshot when we know the player's MLB id.
+// Tries the MLB "silo" style first, then the MiLB style (many prospects only have that), then initials.
+const initials = (name) => name.split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+function photoImg(p, size, imgCls, phCls) {
+  const ph = `<div class="${phCls}">${initials(p.name)}</div>`;
+  if (!p.mlbId) return ph;
+  const base = `https://img.mlbstatic.com/mlb-photos/image/upload/w_${size},q_auto:best/v1/people/${p.mlbId}/headshot`;
+  return `<img ${imgCls ? `class="${imgCls}"` : ''} src="${base}/silo/current" alt="" loading="lazy"
+    onerror="if(!this.dataset.f){this.dataset.f=1;this.src='${base}/milb/current';}else{this.outerHTML='${ph.replace(/"/g, '&quot;')}';}">`;
+}
+
+function openProfile(id) {
+  const p = prospectById(id);
+  if (!p) return;
+  const stats = [p.position, p.team, p.orgRank ? '#' + p.orgRank + ' in org' : '',
+    p.age != null ? p.age + ' yrs' : '', p.level,
+    p.bonus != null ? fmtBonus(p.bonus) + ' bonus' : '',
+    p.fipMinus != null ? p.fipMinus + ' FIP- / ' + p.fip.toFixed(2) + ' FIP (' + p.ip + ' IP)' : '',
+    p.kbb != null ? p.kbb.toFixed(1) + '% K-BB' : '',
+    p.wrc != null ? p.wrc + ' wRC+ (' + p.pa + ' PA)' : ''].filter(Boolean).join(' · ');
+  const agent = agentName(p.agentId);
+  const rank = (v) => v == null ? '<span style="color:#c3c9d4">–</span>' : '#' + v;
+  const searchQ = encodeURIComponent(p.name + ' baseball');
+  const links = [
+    p.fgUrl && `<a class="plink" href="${esc(p.fgUrl)}" target="_blank">FanGraphs ↗</a>`,
+    p.baUrl && `<a class="plink" href="${esc(p.baUrl)}" target="_blank">Baseball America ↗</a>`,
+    p.mlbUrl && `<a class="plink" href="${esc(p.mlbUrl)}" target="_blank">MLB Pipeline ↗</a>`,
+    p.twitter
+      ? `<a class="plink" href="https://x.com/${esc(p.twitter)}" target="_blank">X: @${esc(p.twitter)} ↗</a>`
+      : `<a class="plink" href="https://x.com/search?q=${searchQ}&f=user" target="_blank">Find on X ↗</a>`,
+    p.instagram
+      ? `<a class="plink" href="https://www.instagram.com/${esc(p.instagram)}" target="_blank">IG: @${esc(p.instagram)} ↗</a>`
+      : `<a class="plink" href="https://www.google.com/search?q=${encodeURIComponent(p.name + ' baseball instagram')}" target="_blank">Find on Instagram ↗</a>`,
+    `<a class="plink" href="#" onclick="openRotowire('${p.id}');return false">News (RotoWire) ↗</a>`,
+    p.phone && `<a class="plink" href="tel:${esc(p.phone.replace(/[^+\d]/g, ''))}">📞 ${esc(p.phone)}</a>`,
+    p.whatsapp && `<a class="plink" href="https://wa.me/${esc(p.whatsapp.replace(/\D/g, ''))}" target="_blank">WhatsApp ↗</a>`,
+    p.email && `<a class="plink" href="mailto:${esc(p.email)}">✉️ ${esc(p.email)}</a>`,
+  ].filter(Boolean).join('');
+  document.getElementById('profileCard').innerHTML = `
+    <button class="close" onclick="closeProfile()">✕</button>
+    <div class="profile-head">
+      ${photoImg(p, 213, '', 'bigph')}
+      <div>
+        <h2>${esc(p.name)}</h2>
+        <div class="sub">${esc(stats)}</div>
+        ${agent ? `<div class="sub">Agent: <a href="#" onclick="openAgent('${p.agentId}');return false" style="color:var(--accent);font-weight:600">${esc(agent)}</a></div>` : ''}
+      </div>
+    </div>
+    <div class="profile-ranks">
+      <div class="prank"><div class="lbl">FanGraphs</div><div class="val">${rank(p.fgRank)}${deltaBadge(p, 'fg')}</div></div>
+      <div class="prank"><div class="lbl">Baseball Am.</div><div class="val">${rank(p.baRank)}${deltaBadge(p, 'ba')}</div></div>
+      <div class="prank"><div class="lbl">MLB Pipeline</div><div class="val">${rank(p.mlbRank)}${deltaBadge(p, 'mlb')}</div></div>
+    </div>
+    <div class="profile-links">${links}</div>
+    <div class="handles">
+      <label>X / Twitter
+        <input value="${esc(p.twitter || '')}" placeholder="@handle or profile URL"
+          onchange="setHandle('${p.id}','twitter',this.value)"></label>
+      <label>Instagram
+        <input value="${esc(p.instagram || '')}" placeholder="@handle or profile URL"
+          onchange="setHandle('${p.id}','instagram',this.value)"></label>
+      <label>Phone
+        <input value="${esc(p.phone || '')}" placeholder="+1 555 123 4567" type="tel"
+          onchange="setContact('${p.id}','phone',this.value)"></label>
+      <label>WhatsApp
+        <input value="${esc(p.whatsapp || '')}" placeholder="number incl. country code" type="tel"
+          onchange="setContact('${p.id}','whatsapp',this.value)"></label>
+      <label>Email
+        <input value="${esc(p.email || '')}" placeholder="name@example.com" type="email"
+          onchange="setContact('${p.id}','email',this.value)"></label>
+    </div>`;
+  document.getElementById('overlay').classList.add('open');
+}
+
+// Accepts "@handle", "handle", or a pasted profile URL — stores just the handle
+function setHandle(id, field, value) {
+  const p = prospectById(id);
+  if (!p) return;
+  p[field] = value.trim()
+    .replace(/^https?:\/\/(www\.)?(x\.com|twitter\.com|instagram\.com)\//i, '')
+    .replace(/^@/, '')
+    .replace(/[/?#].*$/, '');
+  queueSave();
+  openProfile(id); // re-render the card so the link appears immediately
+}
+
+// Open the player's RotoWire news page — looked up via their FanGraphs page on first
+// click and cached after that; falls back to a site search if no page is found.
+async function openRotowire(id) {
+  const p = prospectById(id);
+  if (!p) return;
+  const w = window.open('', '_blank'); // open synchronously so the popup isn't blocked
+  if (p.rotowireUrl) { w.location = p.rotowireUrl; return; }
+  try {
+    const r = await (await fetch('/api/rotowire/' + id, { method: 'POST' })).json();
+    if (r.url) { p.rotowireUrl = r.url; w.location = r.url; return; }
+  } catch { /* fall through to search */ }
+  w.location = 'https://www.google.com/search?q=' + encodeURIComponent(p.name + ' site:rotowire.com');
+}
+
+function setContact(id, field, value) {
+  const p = prospectById(id);
+  if (!p) return;
+  p[field] = value.trim();
+  queueSave();
+  openProfile(id);
+}
+
+function openAgent(id) {
+  const a = data.agents.find(x => x.id === id);
+  if (!a) return;
+  const clients = data.prospects.filter(p => p.agentId === id)
+    .sort((x, y) => consensus(x) - consensus(y));
+  const links = [
+    a.phone && `<a class="plink" href="tel:${esc(a.phone.replace(/[^+\d]/g, ''))}">📞 ${esc(a.phone)}</a>`,
+    a.phone && `<a class="plink" href="https://wa.me/${esc(a.phone.replace(/\D/g, ''))}" target="_blank">WhatsApp ↗</a>`,
+    a.email && `<a class="plink" href="mailto:${esc(a.email)}">✉️ ${esc(a.email)}</a>`,
+  ].filter(Boolean).join('') || '<span class="sub" style="color:var(--muted)">No contact info yet — add it on the Agents tab.</span>';
+  const clientRows = clients.map(p => {
+    const ranks = [p.fgRank && 'FG #' + p.fgRank, p.baRank && 'BA #' + p.baRank, p.mlbRank && 'MLB #' + p.mlbRank]
+      .filter(Boolean).join(' · ');
+    return `<a href="#" onclick="openProfile('${p.id}');return false" class="plink" style="display:block;margin-bottom:6px">
+      ${esc(p.name)}${ranks ? ` <span style="color:var(--muted);font-weight:400">— ${ranks}</span>` : ''}</a>`;
+  }).join('') || '<span style="color:var(--muted);font-size:13px">No prospects linked yet.</span>';
+  document.getElementById('profileCard').innerHTML = `
+    <button class="close" onclick="closeProfile()">✕</button>
+    <div class="profile-head">
+      <div class="bigph">${initials(a.name || '?')}</div>
+      <div>
+        <h2>${esc(a.name || '(unnamed agent)')}</h2>
+        ${a.agency ? `<div class="sub">${esc(a.agency)}</div>` : ''}
+        <div class="sub">${clients.length} client${clients.length === 1 ? '' : 's'} on your board</div>
+        ${a.notes ? `<div class="sub" style="margin-top:4px">📝 ${esc(a.notes)}</div>` : ''}
+      </div>
+    </div>
+    <div class="profile-links">${links}</div>
+    <div class="handles">
+      <label>Phone
+        <input value="${esc(a.phone || '')}" placeholder="+1 555 123 4567" type="tel"
+          onchange="setAgentField('${a.id}','phone',this.value)"></label>
+      <label>Email
+        <input value="${esc(a.email || '')}" placeholder="name@agency.com" type="email"
+          onchange="setAgentField('${a.id}','email',this.value)"></label>
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Represents</div>
+      ${clientRows}
+    </div>`;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function setAgentField(id, field, value) {
+  const a = data.agents.find(x => x.id === id);
+  if (!a) return;
+  a[field] = value.trim();
+  queueSave();
+  openAgent(id); // refresh the card so the call/WhatsApp/email buttons appear
+}
+
+function closeProfile() {
+  document.getElementById('overlay').classList.remove('open');
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeProfile(); });
+
+// ---- Grading system (Rob's CRM grades) ----
+// wRC+: 120+ / 110–119 / 90–109 / 80–89 / <80
+const gradeWrc = (v) => v >= 120 ? 'g-dg' : v >= 110 ? 'g-lg' : v >= 90 ? 'g-n' : v >= 80 ? 'g-lr' : 'g-dr';
+// FIP-: ≤80 / 81–90 / 91–109 / 110–119 / 120+
+const gradeFipMinus = (v) => v <= 80 ? 'g-dg' : v <= 90 ? 'g-lg' : v <= 109 ? 'g-n' : v <= 119 ? 'g-lr' : 'g-dr';
+// K-BB%: 20+ / 15–19.9 / 10–14.9 / 5–9.9 / <5
+const gradeKbb = (v) => v >= 20 ? 'g-dg' : v >= 15 ? 'g-lg' : v >= 10 ? 'g-n' : v >= 5 ? 'g-lr' : 'g-dr';
+const gradeCell = (val, cls, title) =>
+  `<span class="grade ${cls}"${title ? ` title="${title}"` : ''}>${val}</span>`;
+
+// Age-to-level: A = 2+ yrs younger than typical for the level … F = 2+ yrs older
+const TYPICAL_AGE = { DSL: 17.5, CPX: 19, R: 19, A: 20.5, 'A+': 21.5, AA: 23, AAA: 24.5, MLB: 26 };
+function ageGrade(p) {
+  const typical = TYPICAL_AGE[p.level];
+  if (p.age == null || !typical) return null;
+  const diff = typical - p.age; // positive = younger than typical
+  if (diff >= 2) return { letter: 'A', cls: 'g-dg' };
+  if (diff >= 1) return { letter: 'B', cls: 'g-lg' };
+  if (diff > -1) return { letter: 'C', cls: 'g-n' };
+  if (diff > -2) return { letter: 'D', cls: 'g-lr' };
+  return { letter: 'F', cls: 'g-dr' };
+}
+
+// Movement vs the previous rank snapshot: positive = climbed, 'new' = entered the list
+function delta(p, key) {
+  const h = p.hist || [];
+  if (h.length < 2) return null;
+  const cur = h[h.length - 1][key], prev = h[h.length - 2][key];
+  if (cur == null) return null;
+  if (prev == null) return 'new';
+  return prev - cur;
+}
+
+function deltaBadge(p, key) {
+  const d = delta(p, key);
+  if (d === 'new') return ' <span class="delta fresh" title="New to this list">●</span>';
+  if (!d) return '';
+  return d > 0 ? ` <span class="delta up" title="Up ${d} since last update">▲${d}</span>`
+               : ` <span class="delta down" title="Down ${-d} since last update">▼${-d}</span>`;
+}
+
+// Record a snapshot when a BA rank is edited by hand (mirrors the server's sync snapshots)
+function snapshotOne(p) {
+  p.hist = p.hist || [];
+  const today = new Date().toISOString().slice(0, 10);
+  const last = p.hist[p.hist.length - 1];
+  const cur = { d: today, fg: p.fgRank ?? null, ba: p.baRank ?? null, mlb: p.mlbRank ?? null };
+  if (!last || last.fg !== cur.fg || last.ba !== cur.ba || last.mlb !== cur.mlb) {
+    if (last && last.d === today) p.hist[p.hist.length - 1] = cur;
+    else p.hist.push(cur);
+    if (p.hist.length > 30) p.hist.shift();
+  }
+}
+
+function render() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const table = document.getElementById('table');
+  const empty = document.getElementById('empty');
+  const srcNote = document.getElementById('srcNote');
+  document.getElementById('syncInfo').textContent = data.lastSync
+    ? 'Ranks updated ' + new Date(data.lastSync).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  srcNote.textContent = '';
+  let rows;
+
+  if (tab === 'prospects') {
+    data.prospects.sort(compareProspects);
+    rows = data.prospects.filter(p =>
+      (!hideMLB || p.level !== 'MLB') &&
+      (matches(p, q, ['name', 'position', 'team', 'level', 'notes']) || agentName(p.agentId).toLowerCase().includes(q)));
+    document.getElementById('count').textContent = `${rows.length} prospect${rows.length === 1 ? '' : 's'}`;
+    const agentOpts = (sel) => `<option value="">—</option>` +
+      data.agents.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name || '(unnamed)')}</option>`).join('');
+    const sortTh = (key, label, title, style = '') =>
+      `<th class="sortable ${key === 'fg' || key === 'ba' || key === 'mlb' ? 'rk' : ''} ${sortBy === key ? 'sorted' : ''}"
+        ${style ? `style="${style}"` : ''} title="${title} — click to sort, again to reverse" onclick="setSort('${key}')">${label}${
+        sortBy === key ? (sortDir === NATURAL_DIR[key] ? ' ↓' : ' ↑') : ''}</th>`;
+    table.innerHTML = rows.length ? `
+      <tr>${sortTh('fg', 'FG', 'FanGraphs')}${sortTh('ba', 'BA', 'Baseball America')}${sortTh('mlb', 'MLB', 'MLB Pipeline')}
+      <th></th>${sortTh('name', 'Name', 'Player name')}${sortTh('pos', 'Pos', 'Position', 'width:64px')}${sortTh('team', 'Team', 'Team', 'width:60px')}${
+      vis('org') ? sortTh('org', 'Org', "Rank within their team's top 30 (MLB Pipeline)", 'width:52px') : ''}${
+      vis('age') ? sortTh('age', 'Age', 'Age', 'width:52px') : ''}${
+      vis('level') ? sortTh('level', 'Level', 'Current level, MLB down to rookie ball', 'width:56px') : ''}${
+      vis('bonus') ? sortTh('bonus', 'Bonus', 'Signing bonus, largest first', 'width:76px') : ''}${
+      vis('games') ? sortTh('games', 'G', '2026 games played (or pitching appearances)', 'width:48px') : ''}${
+      vis('fip') ? sortTh('fip', 'FIP-', '2026 FIP relative to level average — 100 = average, lower is better (level-adjusted, no park factors)', 'width:58px') : ''}${
+      vis('kbb') ? sortTh('kbb', 'K-BB%', '2026 strikeout rate minus walk rate for pitchers (higher is better)', 'width:64px') : ''}${
+      vis('wrc') ? sortTh('wrc', 'wRC+', '2026 wRC+ for hitters (100 = league average, PA-weighted across levels)', 'width:58px') : ''}
+      ${vis('agent') ? sortTh('agent', 'Agent', 'Agent', 'width:150px') : ''}${vis('notes') ? '<th>Notes</th>' : ''}<th style="width:36px"></th></tr>` +
+      rows.map(p => `<tr>
+        <td class="rk ${p.fgRank == null ? 'dim' : ''}">${p.fgRank ?? '–'}${deltaBadge(p, 'fg')}</td>
+        <td class="rk"><div class="rkwrap"><input value="${rk(p.baRank)}" placeholder="–" onchange="update('prospects','${p.id}','baRank',this.value)">${deltaBadge(p, 'ba')}</div></td>
+        <td class="rk ${p.mlbRank == null ? 'dim' : ''}">${p.mlbRank ?? '–'}${deltaBadge(p, 'mlb')}</td>
+        <td class="thumb" onclick="openProfile('${p.id}')" title="View profile">${photoImg(p, 60, 'headshot', 'headshot ph')}</td>
+        <td><input data-field="name" value="${esc(p.name)}" placeholder="Player name" oninput="update('prospects','${p.id}','name',this.value)"></td>
+        <td><input value="${esc(p.position)}" oninput="update('prospects','${p.id}','position',this.value)"></td>
+        <td><input value="${esc(p.team)}" oninput="update('prospects','${p.id}','team',this.value)"></td>
+        ${vis('org') ? `<td class="derived">${p.orgRank ? '#' + p.orgRank : ''}</td>` : ''}
+        ${vis('age') ? `<td class="derived">${(() => { const g = ageGrade(p); return p.age == null ? '' :
+          g ? gradeCell(p.age, g.cls, 'Age vs. typical for ' + esc(p.level)) : p.age; })()}</td>` : ''}
+        ${vis('level') ? `<td class="derived">${esc(p.level || '')}</td>` : ''}
+        ${vis('bonus') ? `<td class="derived">${fmtBonus(p.bonus)}</td>` : ''}
+        ${vis('games') ? `<td class="derived">${p.games ?? ''}</td>` : ''}
+        ${vis('fip') ? `<td class="derived">${p.fipMinus != null ? gradeCell(p.fipMinus, gradeFipMinus(p.fipMinus), (p.fip ?? '') + ' FIP · ' + p.ip + ' IP in 2026') : ''}</td>` : ''}
+        ${vis('kbb') ? `<td class="derived">${p.kbb != null ? gradeCell(p.kbb.toFixed(1) + '%', gradeKbb(p.kbb), p.ip + ' IP in 2026') : ''}</td>` : ''}
+        ${vis('wrc') ? `<td class="derived">${p.wrc != null ? gradeCell(p.wrc, gradeWrc(p.wrc), p.pa + ' PA in 2026') : ''}</td>` : ''}
+        ${vis('agent') ? `<td><select onchange="update('prospects','${p.id}','agentId',this.value)">${agentOpts(p.agentId)}</select></td>` : ''}
+        ${vis('notes') ? `<td><input value="${esc(p.notes)}" placeholder="Notes…" oninput="update('prospects','${p.id}','notes',this.value)"></td>` : ''}
+        <td><button class="del" onclick="removeRow('prospects','${p.id}')" title="Delete">×</button></td>
+      </tr>`).join('') : '';
+    empty.innerHTML = q ? 'No prospects match your search.'
+      : 'No prospects yet. Click <b>↻ Update ranks</b> to pull the latest lists.';
+    srcNote.textContent = 'FG, MLB, Org and stat columns update automatically each week (FanGraphs · MLB Pipeline). BA (Baseball America) is entered by hand — their site blocks automated access. ▲▼ = rank movement; ● = new to that list. Colors follow the CRM grading system (green = good, red = bad) for wRC+, FIP-, K-BB% and the A–F age-to-level grade next to Age. Click any column header to sort, again to reverse, a third time for consensus order.';
+  } else if (tab === 'opportunities') {
+    rows = data.opportunities.filter(o => {
+      const p = prospectById(o.prospectId);
+      return matches(o, q, ['name', 'nextStep', 'notes']) ||
+        (p && (p.name.toLowerCase().includes(q) || agentName(p.agentId).toLowerCase().includes(q)));
+    });
+    document.getElementById('count').textContent = `${rows.length} deal${rows.length === 1 ? '' : 's'}`;
+    const prospectOpts = (sel) => `<option value="">—</option>` +
+      [...data.prospects].sort((a, b) => consensus(a) - consensus(b))
+        .map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name || '(unnamed)')}</option>`).join('');
+    table.innerHTML = rows.length ? `
+      <tr><th>Deal</th><th></th><th style="width:170px">Prospect</th><th style="width:190px">Player</th><th style="width:120px">Agent</th><th style="width:150px">Stage</th>
+      <th style="width:90px">$</th><th style="width:64px">%</th><th>Next step</th><th>Notes</th><th style="width:36px"></th></tr>` +
+      rows.map(o => {
+        const p = prospectById(o.prospectId);
+        const thumb = p ? photoImg(p, 60, 'headshot', 'headshot ph') : '';
+        const rk = (v, lbl) => v == null ? '' : `${lbl} #${v}`;
+        const info = p ? [p.position, p.team, rk(p.fgRank, 'FG'), rk(p.baRank, 'BA'), rk(p.mlbRank, 'MLB')]
+          .filter(Boolean).join(' · ') : '';
+        return `<tr>
+          <td><input data-field="name" value="${esc(o.name)}" placeholder="Deal name" oninput="update('opportunities','${o.id}','name',this.value)"></td>
+          <td class="thumb" ${p ? `onclick="openProfile('${p.id}')" title="View profile"` : ''}>${thumb}</td>
+          <td><select onchange="update('opportunities','${o.id}','prospectId',this.value)">${prospectOpts(o.prospectId)}</select></td>
+          <td class="derived" style="white-space:normal">${esc(info) || '—'}</td>
+          <td class="derived">${p && p.agentId
+            ? `<a href="#" onclick="openAgent('${p.agentId}');return false" style="color:var(--accent);font-weight:600;text-decoration:none">${esc(agentName(p.agentId))}</a>`
+            : '—'}</td>
+          <td><select class="pill-select s-${o.stage}" onchange="update('opportunities','${o.id}','stage',this.value)">
+            ${STAGES.map(s => `<option value="${s.key}" ${s.key === o.stage ? 'selected' : ''}>${s.label}</option>`).join('')}
+          </select></td>
+          <td><input value="${esc(o.value)}" placeholder="$…" oninput="update('opportunities','${o.id}','value',this.value)"></td>
+          <td><input value="${esc(o.pct ?? '')}" placeholder="%" oninput="update('opportunities','${o.id}','pct',this.value)"></td>
+          <td><input value="${esc(o.nextStep)}" placeholder="Next step…" oninput="update('opportunities','${o.id}','nextStep',this.value)"></td>
+          <td><input value="${esc(o.notes)}" placeholder="Notes…" oninput="update('opportunities','${o.id}','notes',this.value)"></td>
+          <td><button class="del" onclick="removeRow('opportunities','${o.id}')" title="Delete">×</button></td>
+        </tr>`;
+      }).join('') : '';
+    empty.innerHTML = q ? 'No deals match your search.' : 'No deals yet. Click <b>+ Add opportunity</b> to start one.';
+  } else {
+    rows = data.agents.filter(a => {
+      const reps = data.prospects.filter(p => p.agentId === a.id).map(p => p.name).join(' ');
+      return matches(a, q, ['name', 'agency', 'phone', 'email', 'notes']) || reps.toLowerCase().includes(q);
+    });
+    document.getElementById('count').textContent = `${rows.length} agent${rows.length === 1 ? '' : 's'}`;
+    table.innerHTML = rows.length ? `
+      <tr><th>Name</th><th style="width:160px">Agency</th><th style="width:130px">Phone</th><th style="width:190px">Email</th>
+      <th style="width:200px">Notes</th><th>Represents</th><th style="width:36px"></th></tr>` +
+      rows.map(a => {
+        const reps = data.prospects.filter(p => p.agentId === a.id)
+          .sort((x, y) => consensus(x) - consensus(y))
+          .map(p => esc(p.name) + (p.fgRank ? ` (FG #${p.fgRank})` : '')).join(', ');
+        return `<tr>
+          <td><input data-field="name" value="${esc(a.name)}" placeholder="Agent name" oninput="update('agents','${a.id}','name',this.value)"></td>
+          <td><input value="${esc(a.agency)}" placeholder="Agency" oninput="update('agents','${a.id}','agency',this.value)"></td>
+          <td><input value="${esc(a.phone)}" placeholder="Phone" oninput="update('agents','${a.id}','phone',this.value)"></td>
+          <td><input value="${esc(a.email)}" placeholder="Email" oninput="update('agents','${a.id}','email',this.value)"></td>
+          <td><input value="${esc(a.notes || '')}" placeholder="Notes…" oninput="update('agents','${a.id}','notes',this.value)"></td>
+          <td class="represents">${reps || '—'}</td>
+          <td><button class="del" onclick="removeRow('agents','${a.id}')" title="Delete">×</button></td>
+        </tr>`;
+      }).join('') : '';
+    empty.innerHTML = q ? 'No agents match your search.' : 'No agents yet. Click <b>+ Add agent</b> to add one.';
+  }
+  empty.style.display = rows.length ? 'none' : 'block';
+}
+
+// ---- Agent CSV import ----
+function downloadTemplate() {
+  const blob = new Blob(['Name,Agency,Phone,Email,Notes\n'], { type: 'text/csv' });
+  const link = Object.assign(document.createElement('a'),
+    { href: URL.createObjectURL(blob), download: 'agents-template.csv' });
+  link.click();
+}
+
+// Minimal CSV parser that handles quoted fields and commas inside quotes
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') inQuotes = false;
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some((f) => f.trim())) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  row.push(field);
+  if (row.some((f) => f.trim())) rows.push(row);
+  return rows;
+}
+
+// Show a brief inline status message instead of a blocking alert
+function toast(msg) {
+  const el = document.getElementById('syncInfo');
+  el.textContent = msg;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(render, 6000); // render() restores the usual sync-date text
+}
+
+function importAgents(input) {
+  const file = input.files[0];
+  input.value = ''; // allow re-importing the same file later
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const rows = parseCSV(String(reader.result));
+    if (rows.length < 2) { toast('Import failed: no data rows found in the file.'); return; }
+    // Map columns by header name, case-insensitively, so column order doesn't matter
+    const headers = rows[0].map((h) => h.trim().toLowerCase());
+    const col = (name) => headers.findIndex((h) => h.includes(name));
+    const ix = { name: col('name'), agency: col('agency'), phone: col('phone'), email: col('email'), notes: col('note') };
+    if (ix.name === -1) { toast('Import failed: no "Name" column found in the file.'); return; }
+
+    const key = (s) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+    const byName = new Map(data.agents.map((a) => [key(a.name), a]));
+    let added = 0, updated = 0;
+    for (const r of rows.slice(1)) {
+      const name = (r[ix.name] || '').trim();
+      if (!name) continue;
+      const vals = {
+        agency: ix.agency >= 0 ? (r[ix.agency] || '').trim() : '',
+        phone: ix.phone >= 0 ? (r[ix.phone] || '').trim() : '',
+        email: ix.email >= 0 ? (r[ix.email] || '').trim() : '',
+        notes: ix.notes >= 0 ? (r[ix.notes] || '').trim() : '',
+      };
+      const existing = byName.get(key(name));
+      if (existing) {
+        // Update with anything non-empty from the file; never blank out what's already there
+        let changed = false;
+        for (const f of ['agency', 'phone', 'email', 'notes']) {
+          if (vals[f] && vals[f] !== existing[f]) { existing[f] = vals[f]; changed = true; }
+        }
+        if (changed) updated++;
+      } else {
+        const a = { id: uid(), name, ...vals };
+        data.agents.push(a);
+        byName.set(key(name), a);
+        added++;
+      }
+    }
+    queueSave();
+    render();
+    toast(`Import complete: ${added} agent${added === 1 ? '' : 's'} added, ${updated} updated.`);
+  };
+  reader.readAsText(file);
+}
+
+function exportCSV() {
+  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  let csv, name;
+  if (tab === 'prospects') {
+    csv = 'FG Rank,BA Rank,MLB Rank,Name,Position,Team,Org Rank,Age,Age Grade,Level,Signing Bonus,Games,FIP-,FIP,K-BB%,IP,wRC+,PA,Agent,Phone,WhatsApp,Email,X,Instagram,Notes\n' + data.prospects.map(p =>
+      [p.fgRank, p.baRank, p.mlbRank, p.name, p.position, p.team, p.orgRank, p.age, ageGrade(p)?.letter || '', p.level, p.bonus, p.games, p.fipMinus, p.fip, p.kbb, p.ip, p.wrc, p.pa, agentName(p.agentId),
+       p.phone, p.whatsapp, p.email, p.twitter, p.instagram, p.notes].map(cell).join(',')).join('\n');
+    name = 'prospects.csv';
+  } else if (tab === 'opportunities') {
+    csv = 'Deal,Prospect,Position,Team,FG Rank,BA Rank,MLB Rank,Agent,Stage,Amount ($),Equity (%),Next step,Notes\n' + data.opportunities.map(o => {
+      const p = prospectById(o.prospectId);
+      return [o.name, p?.name || '', p?.position || '', p?.team || '', p?.fgRank, p?.baRank, p?.mlbRank,
+        p ? agentName(p.agentId) : '',
+        STAGES.find(s => s.key === o.stage)?.label || '', o.value, o.pct, o.nextStep, o.notes].map(cell).join(',');
+    }).join('\n');
+    name = 'opportunities.csv';
+  } else {
+    csv = 'Name,Agency,Phone,Email,Notes,Represents\n' + data.agents.map(a =>
+      [a.name, a.agency, a.phone, a.email, a.notes,
+       data.prospects.filter(p => p.agentId === a.id).map(p => p.name).join('; ')].map(cell).join(',')).join('\n');
+    name = 'agents.csv';
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+  link.click();
+}
+
+load();
+</script>
+</body>
+</html>

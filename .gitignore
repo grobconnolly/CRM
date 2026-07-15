@@ -1,0 +1,10 @@
+# Live CRM data — never commit (contacts, notes live here; cloud copy is on the Railway volume)
+data.json
+data.json.tmp
+
+# Secrets
+.crm-password.txt
+
+# Local tooling
+.claude/
+.DS_Store

@@ -1,0 +1,4 @@
+.claude
+*.command
+DEPLOY.md
+data.json.tmp
