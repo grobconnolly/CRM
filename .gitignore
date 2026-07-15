@@ -8,3 +8,5 @@ data.json.tmp
 # Local tooling
 .claude/
 .DS_Store
+users.json
+users.json.tmp

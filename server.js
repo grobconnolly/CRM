@@ -12,8 +12,13 @@ const PORT = process.env.PORT || 4321;
 const DATA_FILE = process.env.DATA_DIR
   ? path.join(process.env.DATA_DIR, 'data.json')
   : path.join(__dirname, 'data.json');
-// Set CRM_PASSWORD to require login (always set it for cloud deploys); empty = no auth (local use)
-const PASSWORD = process.env.CRM_PASSWORD || '';
+// Login is required whenever REQUIRE_LOGIN (or legacy CRM_PASSWORD) is set — always in the cloud.
+// Locally neither is set, so the app opens with no login.
+const REQUIRE_LOGIN = !!(process.env.REQUIRE_LOGIN || process.env.CRM_PASSWORD);
+const EMAIL_DOMAIN = (process.env.ALLOWED_EMAIL_DOMAIN || 'finlete.com').toLowerCase();
+const USERS_FILE = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, 'users.json')
+  : path.join(__dirname, 'users.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const SYNC_INTERVAL_DAYS = 7;
 // Generic UA on purpose: Cloudflare rejects curl claiming to be Chrome (TLS fingerprint mismatch)
@@ -21,28 +26,59 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)';
 
 const EMPTY = { prospects: [], agents: [], opportunities: [], lastSync: null };
 
-// ---------- Auth (only active when CRM_PASSWORD is set) ----------
+// ---------- Auth: per-user accounts (active when REQUIRE_LOGIN is set) ----------
+// Users live in users.json (on the persistent volume in the cloud), separate from CRM data
+// so password hashes never travel through the /api/data endpoints.
 
-const AUTH_SECRET = crypto.createHash('sha256').update('finlete-crm|' + PASSWORD).digest();
-const sign = (s) => crypto.createHmac('sha256', AUTH_SECRET).update(s).digest('hex');
-
-function makeAuthCookie(req) {
-  const exp = Date.now() + 90 * 24 * 3600 * 1000; // stay logged in for 90 days
-  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
-  return `crm_auth=${exp}.${sign(String(exp))}; Path=/; HttpOnly; Max-Age=7776000; SameSite=Lax${secure}`;
-}
-
-function isAuthed(req) {
-  const m = /(?:^|;\s*)crm_auth=([^;]+)/.exec(req.headers.cookie || '');
-  if (!m) return false;
-  const [exp, sig] = m[1].split('.');
-  if (!exp || !sig || +exp < Date.now()) return false;
+function loadUsers() {
   try {
-    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(sign(exp)));
+    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
   } catch {
-    return false;
+    return { secret: crypto.randomBytes(32).toString('hex'), users: [] };
   }
 }
+
+function saveUsers(u) {
+  const tmp = USERS_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(u, null, 2));
+  fs.renameSync(tmp, USERS_FILE);
+}
+
+let USERS = loadUsers();
+if (REQUIRE_LOGIN && !fs.existsSync(USERS_FILE)) saveUsers(USERS); // persist the session secret
+
+const hashPassword = (pw, salt) => crypto.scryptSync(pw, salt, 32).toString('hex');
+const sign = (s) => crypto.createHmac('sha256', Buffer.from(USERS.secret, 'hex')).update(s).digest('hex');
+const b64u = (s) => Buffer.from(s).toString('base64url');
+
+function makeAuthCookie(req, email) {
+  const exp = Date.now() + 90 * 24 * 3600 * 1000; // stay logged in for 90 days
+  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  const token = `${b64u(email)}.${exp}.${sign(email + '|' + exp)}`;
+  return `crm_auth=${token}; Path=/; HttpOnly; Max-Age=7776000; SameSite=Lax${secure}`;
+}
+
+const CLEAR_COOKIE = 'crm_auth=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax';
+
+// Returns the logged-in user's email, or null
+function authedUser(req) {
+  const m = /(?:^|;\s*)crm_auth=([^;]+)/.exec(req.headers.cookie || '');
+  if (!m) return null;
+  const [emailB64, exp, sig] = m[1].split('.');
+  if (!emailB64 || !exp || !sig || +exp < Date.now()) return null;
+  let email;
+  try {
+    email = Buffer.from(emailB64, 'base64url').toString();
+    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(sign(email + '|' + exp)))) return null;
+  } catch {
+    return null;
+  }
+  return USERS.users.some((u) => u.email === email) ? email : null;
+}
+
+const normEmail = (e) => String(e || '').trim().toLowerCase();
+const validRegistrationEmail = (e) =>
+  /^[a-z0-9._%+-]+@[a-z0-9.-]+$/.test(e) && e.endsWith('@' + EMAIL_DOMAIN);
 
 // Brute-force guard: 20 password attempts per IP per hour
 const attempts = new Map();
@@ -67,11 +103,25 @@ input:focus{border-color:#36a93e}button{width:100%;padding:11px;border:none;bord
 button:hover{background:#299030}#err{color:#ef4444;font-size:13px;min-height:18px;margin-top:10px}</style></head>
 <body><form class="box" onsubmit="go(event)">
 <svg width="44" height="44" viewBox="0 0 53 53" xmlns="http://www.w3.org/2000/svg" fill="none"><path fill="#1B2A39" d="M17.187 15.481h24.571L47.9 4.843H11.044L4.9 15.48l6.144 10.64z"/><path fill="#44A647" d="m44.773 20.801-6.143 10.64H26.345L20.24 42.016l-.038.065-3.033 5.253-6.144-10.638 3.035-5.255.037-.065L20.202 20.8z"/></svg>
-<h1>Finlete <span>CRM</span></h1><p>Enter the team password</p>
-<input type="password" id="pw" autofocus autocomplete="current-password"><button>Log in</button><div id="err"></div></form>
-<script>async function go(e){e.preventDefault();
-const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
-if(r.ok)location.reload();else document.getElementById('err').textContent=r.status===429?'Too many attempts — try again later.':'Wrong password.';}
+<h1>Finlete <span>CRM</span></h1><p id="sub">Log in with your ${EMAIL_DOMAIN} account</p>
+<input type="email" id="email" placeholder="you@${EMAIL_DOMAIN}" autofocus autocomplete="username">
+<input type="password" id="pw" placeholder="Password" autocomplete="current-password">
+<button id="btn">Log in</button><div id="err"></div>
+<a href="#" id="toggle" style="display:block;margin-top:14px;font-size:13px;color:#36a93e;font-weight:600;text-decoration:none">New here? Create an account</a>
+</form>
+<script>
+let mode='login';
+document.getElementById('toggle').onclick=(e)=>{e.preventDefault();mode=mode==='login'?'register':'login';
+document.getElementById('btn').textContent=mode==='login'?'Log in':'Create account';
+document.getElementById('sub').textContent=mode==='login'?'Log in with your ${EMAIL_DOMAIN} account':'Register with your ${EMAIL_DOMAIN} email (password: 8+ characters)';
+document.getElementById('toggle').textContent=mode==='login'?'New here? Create an account':'Already registered? Log in';
+document.getElementById('err').textContent='';};
+async function go(e){e.preventDefault();
+const r=await fetch('/api/'+mode,{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('pw').value})});
+if(r.ok){location.reload();return;}
+const msg=(await r.json().catch(()=>({}))).error;
+document.getElementById('err').textContent=r.status===429?'Too many attempts — try again later.':(msg||'Something went wrong.');}
 </script></body></html>`;
 
 function loadData() {
@@ -446,29 +496,54 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify(obj));
   };
 
-  if (PASSWORD) {
-    if (req.url === '/api/login' && req.method === 'POST') {
+  if (REQUIRE_LOGIN) {
+    if ((req.url === '/api/login' || req.url === '/api/register') && req.method === 'POST') {
+      const isRegister = req.url === '/api/register';
       const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
       if (tooManyAttempts(ip)) return json(429, { error: 'too many attempts' });
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
-        let pw = '';
-        try { pw = JSON.parse(body).password || ''; } catch {}
-        const a = Buffer.from(pw), b = Buffer.from(PASSWORD);
-        if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
-          res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': makeAuthCookie(req) });
+        let email = '', pw = '';
+        try { const b = JSON.parse(body); email = normEmail(b.email); pw = String(b.password || ''); } catch {}
+        if (isRegister) {
+          if (!validRegistrationEmail(email)) return json(403, { error: `Registration is limited to @${EMAIL_DOMAIN} emails.` });
+          if (pw.length < 8) return json(400, { error: 'Password must be at least 8 characters.' });
+          if (USERS.users.some((u) => u.email === email)) return json(409, { error: 'That email is already registered — log in instead.' });
+          const salt = crypto.randomBytes(16).toString('hex');
+          USERS.users.push({ email, salt, hash: hashPassword(pw, salt), created: new Date().toISOString() });
+          saveUsers(USERS);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': makeAuthCookie(req, email) });
           res.end('{"ok":true}');
-        } else json(401, { error: 'wrong password' });
+          return;
+        }
+        const u = USERS.users.find((x) => x.email === email);
+        let ok = false;
+        if (u) {
+          try { ok = crypto.timingSafeEqual(Buffer.from(u.hash, 'hex'), Buffer.from(hashPassword(pw, u.salt), 'hex')); } catch {}
+        }
+        if (ok) {
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': makeAuthCookie(req, email) });
+          res.end('{"ok":true}');
+        } else json(401, { error: 'Wrong email or password.' });
       });
       return;
     }
-    if (!isAuthed(req)) {
+    if (req.url === '/api/logout' && req.method === 'POST') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': CLEAR_COOKIE });
+      res.end('{"ok":true}');
+      return;
+    }
+    const who = authedUser(req);
+    if (req.url === '/api/me') return json(200, { email: who });
+    if (!who) {
       if (req.url.startsWith('/api/')) return json(401, { error: 'unauthorized' });
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(LOGIN_HTML);
       return;
     }
+  } else if (req.url === '/api/me') {
+    return json(200, { email: null }); // local mode — no login
   }
 
   if (req.url === '/api/data' && req.method === 'GET') return json(200, loadData());
@@ -539,7 +614,7 @@ if (!fs.existsSync(DATA_FILE)) {
 }
 
 server.listen(PORT, () => {
-  console.log(`Finlete CRM running at http://localhost:${PORT}${PASSWORD ? ' (password required)' : ''}`);
+  console.log(`Finlete CRM running at http://localhost:${PORT}${REQUIRE_LOGIN ? ' (login required)' : ''}`);
   autoSyncIfStale();
   setInterval(autoSyncIfStale, 24 * 3600 * 1000);
 });

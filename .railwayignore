@@ -2,3 +2,4 @@
 .crm-password.txt
 *.command
 DEPLOY.md
+users.json

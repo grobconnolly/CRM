@@ -189,6 +189,7 @@
   </nav>
   <input id="search" placeholder="Search…" oninput="render()">
   <span id="saveStatus">Saved</span>
+  <span id="who" style="display:none;font-size:12px;color:var(--muted);white-space:nowrap"></span>
 </header>
 
 <main>
@@ -281,6 +282,19 @@ const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 async function load() {
   data = await (await fetch('/api/data')).json();
   render();
+  try {
+    const me = await (await fetch('/api/me')).json();
+    if (me.email) {
+      const el = document.getElementById('who');
+      el.style.display = '';
+      el.innerHTML = `${esc(me.email)} · <a href="#" onclick="logout();return false" style="color:var(--accent);font-weight:600;text-decoration:none">Log out</a>`;
+    }
+  } catch { /* local mode */ }
+}
+
+async function logout() {
+  await fetch('/api/logout', { method: 'POST' });
+  location.reload();
 }
 
 function queueSave() {

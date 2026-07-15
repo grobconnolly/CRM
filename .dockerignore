@@ -2,3 +2,4 @@
 *.command
 DEPLOY.md
 data.json.tmp
+users.json
